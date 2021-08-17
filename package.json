@@ -1,0 +1,32 @@
+{
+  "name": "hedo2.console.api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/app.ts",
+  "scripts": {
+    "watch": "nodemon --watch \"src/**\" --ext \"ts,json\" --ignore \"src/**/*.spec.ts\" --exec \"ts-node src/app.ts\"",
+    "start": "ts-node src/app.ts",
+    "inspect": "node --inspect -r ts-node/register src/app.ts"
+  },
+  "author": "HEDO Beauty",
+  "license": "UNLICENSED",
+  "_moduleAliases": {
+    "@sergei-gaponik/hedo2.lib.models": "../../_lib/models/dist/app.js",
+    "@sergei-gaponik/hedo2.lib.util": "../../_lib/util/dist/app.js"
+  },
+  "devDependencies": {
+    "@types/node": "^15.12.2",
+    "module-alias": "^2.2.2"
+  },
+  "dependencies": {
+    "@types/mongodb": "^3.6.18",
+    "colors": "^1.4.0",
+    "dotenv": "^10.0.0",
+    "fastify": "^3.17.0",
+    "fastify-cors": "^6.0.1",
+    "isomorphic-fetch": "^3.0.0",
+    "mongodb": "^3.6.8",
+    "reflect-metadata": "^0.1.13",
+    "urql": "^2.0.3"
+  }
+}
