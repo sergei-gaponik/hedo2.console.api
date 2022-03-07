@@ -1,7 +1,7 @@
-import * as _productProfiles from '../api/product/productProfiles'
+import * as _sheets from '../api/sheets'
 
 const routes = {
-  ..._productProfiles,
+  ..._sheets,
 }
 
 export default routes

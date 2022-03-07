@@ -1,9 +1,9 @@
-import * as urql from "@urql/core"
 import { Db } from "mongodb"
+import { ConfidentialClientApplication } from '@azure/msal-node'
 
 export interface Context {
-  urqlClient?: urql.Client,
   mongoDB?: Db,
+  microsoftGraphClient?: ConfidentialClientApplication
 }
 
 let _context = {}

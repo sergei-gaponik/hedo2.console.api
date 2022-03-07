@@ -7,19 +7,19 @@ import { bold, cyan, yellow } from 'colors/safe'
 import * as fs from 'fs'
 import * as path from 'path'
 import { MongoClient } from 'mongodb'
-import * as urql from 'urql/core'
 import Fastify from 'fastify'
 import fastifyCors from 'fastify-cors'
 import handler from './core/handler'
 import { VERSION, PRODUCTION } from './core/const'
 import { setContext } from './core/context'
+import { ConfidentialClientApplication } from '@azure/msal-node'
 
 async function main() {
 
   console.log(`${bold(yellow('CONSOLE API'))} v${VERSION}\n`);
   console.log(`env: ${PRODUCTION ? bold(cyan("PRODUCTION")) : bold(yellow("DEVELOPMENT"))}`);
 
-  const { PORT, HOST, MONGODB_INSTANCE, SYSTEM_API_ENDPOINT } = process.env;
+  const { PORT, HOST, MONGODB_INSTANCE } = process.env;
   
   console.log('connecting to mongo db...');
 
@@ -27,18 +27,23 @@ async function main() {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   }
-
-  const mongoDB = await MongoClient.connect(MONGODB_INSTANCE, mongoOptions)
-    .then(client => client.db());
-
-  console.log('initializing graphql client');
-
-  const urqlClient = urql.createClient({ 
-    url: SYSTEM_API_ENDPOINT, 
-    requestPolicy: "network-only"
-  });
   
-  setContext({ urqlClient, mongoDB })
+  const mongoDB = await MongoClient.connect(MONGODB_INSTANCE, mongoOptions)
+  .then(client => client.db());
+  
+  console.log('initializing ms graph client');
+  
+  const msalConfig = {
+    auth: {
+      clientId: process.env.AUTH_CLIENT_ID,
+      authority: process.env.AUTH_AUTHORITY,
+      clientSecret: process.env.AUTH_CLIENT_SECRET,
+    }
+  }
+
+  const microsoftGraphClient = new ConfidentialClientApplication(msalConfig)
+
+  setContext({ mongoDB, microsoftGraphClient })
 
   console.log('initializing server...');
 
