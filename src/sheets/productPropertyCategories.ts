@@ -1,41 +1,35 @@
 import { CheckSheetResponse, Color, CommitSheetArgs, ConsoleRequestError, ConsoleResponse } from '../types'
 import { readFromSheet, writeToSheet } from '../util/sheets'
-import { validateSheetValues, isValidName, isValidDescription, isValidAsset } from "../util/validation"
+import { validateSheetValues, isValidName, isValidDescription } from "../util/validation"
 import { overview } from '../util/overview'
-import { Brand } from '@sergei-gaponik/hedo2.lib.models'
-import { getAllBrands, upsertBrands, deleteBrands } from '../crud/brands'
+import { ProductPropertyCategory } from '@sergei-gaponik/hedo2.lib.models'
 import { getFillsForSheetReset } from '../util/misc'
+import { deleteProductPropertyCategories, getAllProductPropertyCategories, upsertProductPropertyCategories } from '../crud/productPropertyCategories'
 
-const SHEET_NAME = "Marken"
-const SHEET_HEAD = ["ID", "Handle", "Name", "Beschreibung (optional)", "Logo URL (optional)", "Hervorheben" ]
+const SHEET_NAME = "Eigenschaftskategorien"
+const SHEET_HEAD = ["ID", "Handle", "Name", "Beschreibung (optional)"]
 
 const POS = {
   id: 0,
   handle: 1,
   name: 2,
   description: 3,
-  logoSrc: 4,
-  featured: 5,
 }
 
 export async function check(): Promise<CheckSheetResponse>{
   
   const cells = await readFromSheet(SHEET_NAME)
-  const brands = await getAllBrands()
+  const productPropertyCategories = await getAllProductPropertyCategories()
 
-  const overviewResponse = overview(cells, brands, {
-    [POS.name]: (name, item: Brand) => (!item.name && !name) || name == item.name,
-    [POS.description]: (description, item: Brand) => (!item.description && !description) || description == item.description,
-    [POS.logoSrc]: (logoSrc, item: Brand) => (!item.logo?.src && !logoSrc) || logoSrc == item.logo?.src,
-    [POS.featured]: (featured, item: Brand) => (!item.featured && !featured) || !!featured == item.featured,
+  const overviewResponse = overview(cells, productPropertyCategories, {
+    [POS.name]: (name, item: ProductPropertyCategory) => (!item.name && !name) || name == item.name,
+    [POS.description]: (description, item: ProductPropertyCategory) => (!item.description && !description) || description == item.description,
     [POS.handle]: () => true
   })
 
   const validationErrors = validateSheetValues(cells, {
     [POS.name]: (name: string) => isValidName(name),
     [POS.description]: (description: string) => !description || isValidDescription(description),
-    [POS.logoSrc]: (logoSrc: string) => !logoSrc || isValidAsset(logoSrc),
-    [POS.featured]: () => true,
     [POS.handle]: () => true
   })
 
@@ -53,19 +47,15 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
     _id: row[POS.id] as string,
     name: row[POS.name] as string,
     description: row[POS.description] as string, 
-    logo: {
-      src: row[POS.logoSrc] as string
-    },
-    featured: !!row[POS.featured]
   }))
 
-  const r = await upsertBrands(upserts)
+  const r = await upsertProductPropertyCategories(upserts)
 
   if(r.errors?.length){
     return { errors: [ ConsoleRequestError.internalServerError ]}
   }
 
-  const r2 = await deleteBrands(deletedIds)
+  const r2 = await deleteProductPropertyCategories(deletedIds)
   
   if(r2.errors?.length){
     return { errors: [ ConsoleRequestError.internalServerError ]}
@@ -76,15 +66,13 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
 
 export async function reset(): Promise<ConsoleResponse>{
 
-  const brands = await getAllBrands()
+  const productPropertyCategories = await getAllProductPropertyCategories()
 
-  const values = brands.map(brand => Object.values({
-    [POS.id]: brand._id,
-    [POS.name]: brand.name || "",
-    [POS.description]: brand.description || "",
-    [POS.logoSrc]: brand.logo?.src || "",
-    [POS.featured]: brand.featured ? "x" : "",
-    [POS.handle]: brand.handle || ""
+  const values = productPropertyCategories.map(productPropertyCategory => Object.values({
+    [POS.id]: productPropertyCategory._id,
+    [POS.name]: productPropertyCategory.name || "",
+    [POS.description]: productPropertyCategory.description || "",
+    [POS.handle]: productPropertyCategory.handle || ""
   }))
 
   const fills = getFillsForSheetReset(values.length, SHEET_HEAD.length, {
