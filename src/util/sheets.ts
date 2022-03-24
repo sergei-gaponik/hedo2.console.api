@@ -2,9 +2,9 @@ import microsoftGraphHandler from '../core/microsoftGraphHandler'
 import { SheetValues } from '../types'
 import { toAlpha } from '../util/misc'
 
-const getSheetPath = sheetName => `drives/${process.env.OFFICE_DRIVE_ID}/items/${process.env.OFFICE_DRIVEITEM_ID}/workbook/worksheets/${sheetName}`
+const getSheetPath = sheetName => `drives/${process.env.OFFICE_DRIVE_ID}/items/${process.env.OFFICE_DRIVEITEM_ID}/workbook/worksheets/${encodeURI(sheetName)}`
 
-export async function readFromSheet(sheetName: string){
+export async function readFromSheet(sheetName: string): Promise<SheetValues>{
 
   const rowEmpty = row => row.every(a => !a)
 
@@ -23,7 +23,12 @@ export async function readFromSheet(sheetName: string){
 
   const nCols = r.data.values[0].filter(a => a).length
 
-  return sliceY(r.data.values).map(row => row.slice(0, nCols))
+  return sliceY(r.data.values).map(row => row.slice(0, nCols).map(a => {
+
+
+    
+    return typeof(a) == "string" ? a.trim() : a.toString()
+  }))
 }
 
 interface SheetFillOperation {
@@ -54,7 +59,8 @@ export async function writeToSheet(sheetName: string, head: string[], values: Sh
         path: `${getSheetPath(sheetName)}/range(address='${address}')`,
         method: "PATCH",
         body: {
-          values: [ head, ...values ]
+          values: [ head, ...values ],
+          numberFormat: "@"
         }
       },
       ...fills.map(fill => ({

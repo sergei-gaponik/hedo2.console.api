@@ -1,6 +1,6 @@
 import { queryAll } from '@sergei-gaponik/hedo2.lib.util'
 import { Brand, BrandFilter } from '@sergei-gaponik/hedo2.lib.models'
-import { upsertMany, deleteMany } from './operations'
+import { upsertMany, deleteMany } from '../util/crud'
 
 export async function getAllBrands(): Promise<Brand[]>{
   const gql = `

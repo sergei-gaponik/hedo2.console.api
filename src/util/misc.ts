@@ -7,6 +7,25 @@ interface ItemWithHandle{
 
 export const toAlpha = n => (n + 9).toString(36).toUpperCase()
 
+export function dateTimeFromString(dateString: string): number{
+
+  if(!dateString) 
+    return null;
+
+  try{
+    const [ days, months, year = new Date().getFullYear() ] = dateString.split(".").map(a => parseInt(a))
+  
+    return new Date(year, months-1, days).getTime();
+  }
+  catch(e){
+    return null
+  }
+}
+
+export function dateTimeToString(dateTime: number): string {
+  return new Date(dateTime).toLocaleString("de-DE").split(",")[0]
+}
+
 export function idFromHandle(handle: string, items: ItemWithHandle[]){
   const id = items.find(item => item.handle == handle.trim())._id
 

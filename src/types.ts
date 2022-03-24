@@ -1,4 +1,4 @@
-export type SheetValues = (string | number)[][]
+export type SheetValues = string[][]
 
 export interface Sheet{
   check: () => Promise<CheckSheetResponse>,

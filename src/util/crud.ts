@@ -2,6 +2,9 @@ import { gqlHandler } from '@sergei-gaponik/hedo2.lib.util'
 
 export async function upsertMany(gql: string, items: any[]){
 
+  if(!items.length) 
+    return {};
+
   const input = {
     items: items.map(item => {
 
@@ -20,6 +23,9 @@ export async function upsertMany(gql: string, items: any[]){
 }
 
 export async function deleteMany(gql: string, ids: string[]){
+
+  if(!ids.length) 
+    return {};
 
   const filter = {
     _json: JSON.stringify({

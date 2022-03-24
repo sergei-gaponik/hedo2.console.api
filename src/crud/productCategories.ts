@@ -1,7 +1,7 @@
 
 import { queryAll } from '@sergei-gaponik/hedo2.lib.util'
 import { ProductCategory, ProductCategoryFilter } from '@sergei-gaponik/hedo2.lib.models'
-import { upsertMany, deleteMany } from './operations'
+import { upsertMany, deleteMany } from '../util/crud'
 
 export async function getAllProductCategories(): Promise<ProductCategory[]>{
   const gql = `
@@ -12,6 +12,7 @@ export async function getAllProductCategories(): Promise<ProductCategory[]>{
         handle
         title
         description
+        position
         parent {
           _id
           handle

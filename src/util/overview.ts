@@ -1,7 +1,7 @@
 import { ItemWithId, OverviewResponse, SheetValues } from "../types";
 import { isDeleteMark } from './validation'
 
-type ComparisonFunction = (sheetValue: string | number, item: ItemWithId) => boolean
+type ComparisonFunction = (sheetValue: string, item: ItemWithId) => boolean
 
 interface ComparisonFunctionMap {
  [pos: number]: ComparisonFunction
@@ -21,14 +21,21 @@ export function overview(values: SheetValues, items: ItemWithId[], comparisonFun
 
   const duplicateIds = findDuplicates(sheetIds) as string[]
   const deletedIds = itemIds.filter(a => !sheetIds.includes(a))
-  const unknownIds = sheetIds.filter(a => !itemIds.includes(a))
+  let unknownIds = sheetIds.filter(a => !itemIds.includes(a))
   
-  const updated = existing.filter((row, i) => {
+  const updated = existing.filter((row) => {
     
+    const item = items.find(a => a._id == row[0])
+
+    if(!item){
+      unknownIds.push(row[0])
+      return false;
+    }
+
     if(isDeleteMark(row[0] as string))
       return false
     else
-      return row.slice(1).some((cell, j) => !_comparisonFunctions[j](cell, items[i]))
+      return row.slice(1).some((cell, j) => !_comparisonFunctions[j](cell, item))
   })
 
   const deleteMarksLength = values.map(a => a[0]).filter(a => isDeleteMark(a as string)).length

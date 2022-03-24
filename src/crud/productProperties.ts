@@ -1,7 +1,7 @@
 
 import { queryAll } from '@sergei-gaponik/hedo2.lib.util'
 import { ProductProperty, ProductPropertyFilter } from '@sergei-gaponik/hedo2.lib.models'
-import { upsertMany, deleteMany } from './operations'
+import { upsertMany, deleteMany } from '../util/crud'
 
 export async function getAllProductProperties(): Promise<ProductProperty[]>{
   const gql = `

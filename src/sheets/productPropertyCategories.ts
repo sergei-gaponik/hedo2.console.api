@@ -68,12 +68,14 @@ export async function reset(): Promise<ConsoleResponse>{
 
   const productPropertyCategories = await getAllProductPropertyCategories()
 
-  const values = productPropertyCategories.map(productPropertyCategory => Object.values({
-    [POS.id]: productPropertyCategory._id,
-    [POS.name]: productPropertyCategory.name || "",
-    [POS.description]: productPropertyCategory.description || "",
-    [POS.handle]: productPropertyCategory.handle || ""
-  }))
+  const values = productPropertyCategories
+    .sort((a, b) => a.handle > b.handle ? 1 : -1)
+    .map(productPropertyCategory => Object.values({
+      [POS.id]: productPropertyCategory._id,
+      [POS.name]: productPropertyCategory.name || "",
+      [POS.description]: productPropertyCategory.description || "",
+      [POS.handle]: productPropertyCategory.handle || ""
+    }))
 
   const fills = getFillsForSheetReset(values.length, SHEET_HEAD.length, {
     [POS.id]: Color.immutable,

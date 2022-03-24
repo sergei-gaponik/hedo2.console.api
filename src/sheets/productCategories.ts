@@ -11,7 +11,7 @@ import { getAllProductProperties } from '../crud/productProperties'
 import { getFillsForSheetReset, handleFromId, idFromHandle } from '../util/misc'
 
 const SHEET_NAME = "Kategorien"
-const SHEET_HEAD = ["ID", "Handle", "Name", "Anzeigename (wenn abweichend)", "Überkategorie (optional)", "Beschreibung (optional)", "Bedingung", "Hervorheben"]
+const SHEET_HEAD = ["ID", "Handle", "Name", "Anzeigename (wenn abweichend)", "Überkategorie (optional)", "Bedingung", "Beschreibung (optional)", "Position", "Hervorheben"]
 
 const POS = {
   id: 0,
@@ -19,9 +19,10 @@ const POS = {
   name: 2,
   title: 3,
   parent: 4,
-  description: 5,
-  condition: 6,
-  featured: 7,
+  condition: 5,
+  description: 6,
+  position: 7,
+  featured: 8,
 }
 
 function getConditionCaption(condition: ProductCategoryOrCondition[]): string{
@@ -88,13 +89,14 @@ export async function check(): Promise<CheckSheetResponse>{
   const productProperties = await getAllProductProperties()
 
   const overviewResponse = overview(cells, productCategories, {
+    [POS.handle]: () => true,
     [POS.name]: (name, item: ProductCategory) => name == item.name,
     [POS.title]: (title, item: ProductCategory) => (!item.title && !title) || title == item.title,
     [POS.parent]: (parent: string, item: ProductCategory) => (!parent && !(item.parent as any)?.handle) || (parent == (item.parent as any)?.handle),
     [POS.description]: (description, item: ProductCategory) => (!item.description && !description) || description == item.description,
     [POS.condition]: (condition, item: ProductCategory) => compareConditionCaptions(item.andCondition, condition),
     [POS.featured]: (featured, item: ProductCategory) => (!item.featured && !featured) || !!featured == item.featured,
-    [POS.handle]: () => true
+    [POS.position]: (position, item: ProductCategory) => parseInt(position) == item.position
   })
 
   const productPopertyHandles = productProperties.map(a => a.handle)
@@ -107,7 +109,8 @@ export async function check(): Promise<CheckSheetResponse>{
     [POS.description]: (description: string) => !description || isValidDescription(description),
     [POS.condition]: (condition: string) => isValidCondition(productPopertyHandles, condition),
     [POS.featured]: () => true,
-    [POS.handle]: () => true
+    [POS.handle]: () => true,
+    [POS.position]: (position: string) => !isNaN(position as any)
   })
 
   return { 
@@ -120,7 +123,6 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
 
   const { deletedIds, updated, inserted } = args
 
-
   const productCategories = await getAllProductCategories()
   const productProperties = await getAllProductProperties()
 
@@ -131,7 +133,8 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
     parent: row[POS.parent] ? idFromHandle(row[POS.parent] as string, productCategories) : null,
     description: row[POS.description] as string,
     andCondition: getConditionFromCaption(row[POS.condition] as string, productProperties),
-    featured: !!row[POS.featured]
+    featured: !!row[POS.featured],
+    position: row[POS.position] ? parseInt(row[POS.position]) : 0
   }))
 
   const r = await upsertProductCategories(upserts)
@@ -153,16 +156,32 @@ export async function reset(): Promise<ConsoleResponse>{
 
   const productCategories = await getAllProductCategories()
 
-  const values = productCategories.map(productCategory => Object.values({
-    [POS.id]: productCategory._id,
-    [POS.name]: productCategory.name || "",
-    [POS.title]: productCategory.title || "",
-    [POS.parent]: (productCategory.parent as any)?.handle || "",
-    [POS.description]: productCategory.description || "",
-    [POS.condition]: getConditionCaption(productCategory.andCondition),
-    [POS.handle]: productCategory.handle || "",
-    [POS.featured]: productCategory.featured ? "x" : ""
-  }))
+  const values = productCategories
+    .map(productCategory => {
+
+      let sortBy = productCategory.handle
+      let parentHandle = (productCategory.parent as any)?.handle
+
+      for(let i = 10; parentHandle && i > 0; i--){
+
+        sortBy = `${parentHandle} ${sortBy}`
+        parentHandle = (productCategories.find(a => a.handle == parentHandle)?.parent as any)?.handle
+      }
+
+      return { ...productCategory, sortBy }
+    })
+    .sort((a, b) => a.sortBy > b.sortBy ? 1 : -1)
+    .map(productCategory => Object.values({
+      [POS.id]: productCategory._id,
+      [POS.name]: productCategory.name || "",
+      [POS.title]: productCategory.title || "",
+      [POS.parent]: (productCategory.parent as any)?.handle || "",
+      [POS.description]: productCategory.description || "",
+      [POS.condition]: getConditionCaption(productCategory.andCondition),
+      [POS.handle]: productCategory.handle || "",
+      [POS.featured]: productCategory.featured ? "x" : "",
+      [POS.position]: productCategory.position
+    }))
 
   const fills = getFillsForSheetReset(values.length, SHEET_HEAD.length, {
     [POS.id]: Color.immutable,

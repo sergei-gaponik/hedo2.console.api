@@ -84,14 +84,16 @@ export async function reset(): Promise<ConsoleResponse>{
 
   const series = await getAllSeries()
 
-  const values = series.map(oneSeries => Object.values({
-    [POS.id]: oneSeries._id,
-    [POS.name]: oneSeries.name || "",
-    [POS.brand]: (oneSeries.brand as any).handle || "",
-    [POS.description]: oneSeries.description || "",
-    [POS.logoSrc]: oneSeries.logo?.src || "",
-    [POS.handle]: oneSeries.handle || ""
-  }))
+  const values = series
+    .sort((a, b) => a.handle > b.handle ? 1 : -1)
+    .map(oneSeries => Object.values({
+      [POS.id]: oneSeries._id,
+      [POS.name]: oneSeries.name || "",
+      [POS.brand]: (oneSeries.brand as any).handle || "",
+      [POS.description]: oneSeries.description || "",
+      [POS.logoSrc]: oneSeries.logo?.src || "",
+      [POS.handle]: oneSeries.handle || ""
+    }))
 
   const fills = getFillsForSheetReset(values.length, SHEET_HEAD.length, {
     [POS.id]: Color.immutable,

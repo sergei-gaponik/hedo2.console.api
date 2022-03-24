@@ -6,6 +6,7 @@ import * as productCategories from '../sheets/productCategories'
 import * as productProperties from '../sheets/productProperties'
 import * as productPropertyCategories from '../sheets/productPropertyCategories'
 import * as productKeywords from '../sheets/productKeywords'
+import * as articles from '../sheets/articles'
 
 interface CheckSheetResponseMap{
   [key: string]: CheckSheetResponse
@@ -22,7 +23,8 @@ const routes: SheetMap = {
   productCategories,
   productProperties,
   productPropertyCategories,
-  productKeywords
+  productKeywords,
+  articles
 }
 
 const sheetIsValid = (a: CheckSheetResponse) => 

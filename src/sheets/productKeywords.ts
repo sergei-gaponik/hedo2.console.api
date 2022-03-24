@@ -4,110 +4,153 @@ import { CheckSheetResponse, CommitSheetArgs, ConsoleRequestError, ConsoleRespon
 import { readFromSheet, writeToSheet } from '../util/sheets'
 import { validateSheetValues, isValidName, isValidDescription, isValidAsset } from "../util/validation"
 import { overview } from '../util/overview'
-import { ProductCategory, ProductProperty, ProductCategoryOrConditionInput, ProductCategoryOrCondition } from '@sergei-gaponik/hedo2.lib.models'
-import { handleize } from '@sergei-gaponik/hedo2.lib.util'
-import { deleteProductCategories, getAllProductCategories, upsertProductCategories } from '../crud/productCategories'
+import { ProductKeyword, ProductPropertyConditionOperator, ProductPropertyConditionLogic, ProductProperty, ProductPropertyCondition, ProductPropertyConditionInput } from '@sergei-gaponik/hedo2.lib.models'
+import { deleteProductKeywords, getAllProductKeywords, upsertProductKeywords } from '../crud/productKeywords'
 import { getAllProductProperties } from '../crud/productProperties'
 import { getFillsForSheetReset, handleFromId, idFromHandle } from '../util/misc'
 
-const SHEET_NAME = "Kategorien"
-const SHEET_HEAD = ["ID", "Handle", "Name", "Anzeigename (wenn abweichend)", "Überkategorie (optional)", "Beschreibung (optional)", "Bedingung", "Hervorheben"]
+const SHEET_NAME = "Keywords"
+const SHEET_HEAD = [ "ID", "Name", "Synonyme (optional)", "Bedingung" ]
 
 const POS = {
   id: 0,
-  handle: 1,
-  name: 2,
-  title: 3,
-  parent: 4,
-  description: 5,
-  condition: 6,
-  featured: 7,
+  name: 1,
+  aliases: 2,
+  condition: 3,
 }
 
-function getConditionCaption(condition: ProductCategoryOrCondition[]): string{
+function normalizeConditionCaption(conditionCaption: string): string{
 
-  if(condition.length > 1)
-    return condition.map(or => {
-      if(or.properties.length > 1)
-        return `(${or.properties.map(a => a.handle).join(" / ")})`
-      else
-        return (or.properties[0] as any).handle
-
-    }).join(" & ")
-  else
-    return condition[0].properties.map(a => a.handle).join(" / ")
+  return conditionCaption.replace(/[\|\\]/g, "/").replace(/[ \(\)]/g, "") 
 }
 
-function normalizeConditionCaption(_caption: string): string{
-  return _caption.replace(/[\|\\]/g, "/").replace(/[ \(\)]/g, "") 
-}  
+function getConditionCaption(keyword: ProductKeyword): string{
 
-function compareConditionCaptions(condition: ProductCategoryOrCondition[], caption): boolean{
+  const conditionLogicMap = {
+    [ProductPropertyConditionLogic.and]: "&",
+    [ProductPropertyConditionLogic.or]: "/"
+  }
 
-  return normalizeConditionCaption(getConditionCaption(condition)) == normalizeConditionCaption(caption)
-}
+  const logicOperator = ` ${conditionLogicMap[keyword.conditionLogic]} `
 
-function getConditionFromCaption(conditionCaption: string, productProperties: ProductProperty[]): ProductCategoryOrConditionInput[]{
+  return keyword.conditions.map(condition => {
 
-  const orConditions = normalizeConditionCaption(conditionCaption).split("&")
-
-  if(orConditions.length > 10) throw new Error();
-
-  return orConditions.map(orCondition => {
-
-    const properties = orCondition.split("/")
-
-    if(properties.length > 10) throw new Error();
-
-    return {
-      properties: properties.map(a => idFromHandle(a, productProperties))
+    if((condition.operator == ProductPropertyConditionOperator.eq && condition.value == "true") 
+      || (condition.operator == ProductPropertyConditionOperator.ne && condition.value == "false")
+    ){
+      return (condition.property as ProductProperty).handle
     }
-  })
+    else if((condition.operator == ProductPropertyConditionOperator.ne && condition.value == "true") 
+      || (condition.operator == ProductPropertyConditionOperator.eq && condition.value == "false")
+    ){
+      return "!" + (condition.property as ProductProperty).handle
+    }
+    else{
+      return "INVALID_OP"
+    }
+
+  }).join(logicOperator)
 }
 
-function isValidCondition(productPropertyHandles: string[], conditionCaption: string): boolean{
+function compareConditions(item: ProductKeyword, conditionCaption){
+  return normalizeConditionCaption(getConditionCaption(item)) == normalizeConditionCaption(conditionCaption)
+}
 
-  const orConditions = normalizeConditionCaption(conditionCaption).split("&")
+function compareAliases(aliases: string[], aliasesCaption: string){
 
-  if(orConditions.length > 10) return false;
+  if(!aliases?.length)
+    return !aliasesCaption;
 
-  return orConditions.every(orCondition => {
+  return aliases.sort().join(",") == aliasesCaption.split(",").map(a => a.trim()).sort().join(",")
+}
 
-    const properties = orCondition.split("/")
+function isValidConditionCaption(productPopertyHandles: string[], conditionCaption: string): boolean {
 
-    if(properties.length > 10) return false;
+  const caption = normalizeConditionCaption(conditionCaption)
 
-    return properties.every(property => productPropertyHandles.includes(property))
-  })
+  if(!/^[a-z1-9\-\/\&\!]*$/.test(caption))
+    return false;
+
+  const p = a => productPopertyHandles.includes(a[0] == "!" ? a.slice(1) : a) 
+
+  if(caption.split('&').every(a => p(a)) || caption.split('/').every(a => p(a)))
+    return true;
+
+  return false;
+}
+
+function isValidAliasesCaption(aliasesCaption: string, name: string): boolean{
+
+  const aliases = [ ...aliasesCaption.split(",").map(a => a.trim()), name ]
+
+  return aliases.every(alias => isValidName(alias) && aliases.filter(a => a == alias).length == 1)
+}
+
+interface GetConditionFromCaptionResponse{
+  conditions: ProductPropertyConditionInput[],
+  conditionLogic: ProductPropertyConditionLogic
+}
+
+function getConditionFromCaption(conditionCaption: string, productProperties: ProductProperty[]): GetConditionFromCaptionResponse{
+
+  const caption = normalizeConditionCaption(conditionCaption)
+
+  const or = caption.split("/")
+  const and = caption.split("&")
+
+  if(or.length > 1 && and.length > 1)
+    throw new Error();
+
+  const getConditions = (conditions: string[]): ProductPropertyConditionInput[] => {
+
+    return conditions.map(condition => {
+
+      const value = condition[0] == "!" ? "false" : "true"
+      const propertyHandle = condition[0] == "!" ? condition.slice(1) : condition
+      const operator = ProductPropertyConditionOperator.eq
+      const property = idFromHandle(propertyHandle, productProperties)
+
+      return { property, operator, value }
+    })
+  }
+
+  if(or.length > 1){
+    return {
+      conditions: getConditions(or),
+      conditionLogic: ProductPropertyConditionLogic.or
+    }
+  }
+  else{
+    return {
+      conditions: getConditions(and),
+      conditionLogic: ProductPropertyConditionLogic.and
+    }
+  }
+}
+
+function getAliasesFromCaption(aliasesCaption: string): string[]{
+
+  return aliasesCaption.split(",").map(a => a.trim())
 }
 
 export async function check(): Promise<CheckSheetResponse>{
 
   const cells = await readFromSheet(SHEET_NAME)
-  const productCategories = await getAllProductCategories()
+  const productKeywords = await getAllProductKeywords()
   const productProperties = await getAllProductProperties()
 
-  const overviewResponse = overview(cells, productCategories, {
-    [POS.name]: (name, item: ProductCategory) => name == item.name,
-    [POS.title]: (title, item: ProductCategory) => (!item.title && !title) || title == item.title,
-    [POS.parent]: (parent: string, item: ProductCategory) => (!parent && !(item.parent as any)?.handle) || (parent == (item.parent as any)?.handle),
-    [POS.description]: (description, item: ProductCategory) => (!item.description && !description) || description == item.description,
-    [POS.condition]: (condition, item: ProductCategory) => compareConditionCaptions(item.andCondition, condition),
-    [POS.featured]: (featured, item: ProductCategory) => (!item.featured && !featured) || !!featured == item.featured,
-    [POS.handle]: () => true
+  const overviewResponse = overview(cells, productKeywords, {
+    [POS.name]: (name, item: ProductKeyword) => name == item.name,
+    [POS.aliases]: (aliases: string, item: ProductKeyword) => compareAliases(item.aliases, aliases),
+    [POS.condition]: (condition, item: ProductKeyword) => compareConditions(item, condition),
   })
 
   const productPopertyHandles = productProperties.map(a => a.handle)
-  const productCategoryHandles = productCategories.map(a => a.handle)
 
   const validationErrors = validateSheetValues(cells, {
     [POS.name]: (name: string) => isValidName(name),
-    [POS.title]: (title: string, row) => !title || (isValidName(title) && title != row[POS.name]),
-    [POS.parent]: (parent: string, row) => !parent || (productCategoryHandles.includes(parent) && parent != handleize(row[POS.name] as string)),
-    [POS.description]: (description: string) => !description || isValidDescription(description),
-    [POS.condition]: (condition: string) => isValidCondition(productPopertyHandles, condition),
-    [POS.featured]: () => true,
-    [POS.handle]: () => true
+    [POS.condition]: (condition: string) => isValidConditionCaption(productPopertyHandles, condition),
+    [POS.aliases]: (aliases: string, row) => !aliases || isValidAliasesCaption(aliases, row[POS.name] as string)
   })
 
   return { 
@@ -120,27 +163,28 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
 
   const { deletedIds, updated, inserted } = args
 
-
-  const productCategories = await getAllProductCategories()
   const productProperties = await getAllProductProperties()
 
-  const upserts = [ ...updated, ...inserted ].map(row => ({
-    _id: row[POS.id] as string,
-    name: row[POS.name] as string,
-    title: row[POS.title] as string,
-    parent: row[POS.parent] ? idFromHandle(row[POS.parent] as string, productCategories) : null,
-    description: row[POS.description] as string,
-    andCondition: getConditionFromCaption(row[POS.condition] as string, productProperties),
-    featured: !!row[POS.featured]
-  }))
+  const upserts = [ ...updated, ...inserted ].map(row => {
 
-  const r = await upsertProductCategories(upserts)
+    const { conditions, conditionLogic } = getConditionFromCaption(row[POS.condition] as string, productProperties)
+
+    return {
+      _id: row[POS.id] as string,
+      name: row[POS.name] as string,
+      aliases: getAliasesFromCaption(row[POS.aliases] as string),
+      conditions, 
+      conditionLogic
+    }
+  })
+
+  const r = await upsertProductKeywords(upserts)
 
   if(r.errors?.length){
     return { errors: [ ConsoleRequestError.internalServerError ]}
   }
 
-  const r2 = await deleteProductCategories(deletedIds)
+  const r2 = await deleteProductKeywords(deletedIds)
 
   if(r2.errors?.length){
     return { errors: [ ConsoleRequestError.internalServerError ]}
@@ -151,24 +195,20 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
 
 export async function reset(): Promise<ConsoleResponse>{
 
-  const productCategories = await getAllProductCategories()
+  const productKeywords = await getAllProductKeywords()
 
-  const values = productCategories.map(productCategory => Object.values({
-    [POS.id]: productCategory._id,
-    [POS.name]: productCategory.name || "",
-    [POS.title]: productCategory.title || "",
-    [POS.parent]: (productCategory.parent as any)?.handle || "",
-    [POS.description]: productCategory.description || "",
-    [POS.condition]: getConditionCaption(productCategory.andCondition),
-    [POS.handle]: productCategory.handle || "",
-    [POS.featured]: productCategory.featured ? "x" : ""
+  const values = productKeywords
+  .sort((a, b) => a.name > b.name ? 1 : -1)
+  .map(productKeyword => Object.values({
+    [POS.id]: productKeyword._id,
+    [POS.name]: productKeyword.name || "",
+    [POS.aliases]: productKeyword.aliases?.join(", ") || "",
+    [POS.condition]: getConditionCaption(productKeyword),
   }))
 
   const fills = getFillsForSheetReset(values.length, SHEET_HEAD.length, {
     [POS.id]: Color.immutable,
-    [POS.handle]: Color.immutable,
     [POS.condition]: Color.key,
-    [POS.parent]: Color.key
   })
 
   const ok = await writeToSheet(SHEET_NAME, SHEET_HEAD, values, fills)

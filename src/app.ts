@@ -13,8 +13,11 @@ import handler from './core/handler'
 import { VERSION, PRODUCTION } from './core/const'
 import { setContext } from './core/context'
 import { ConfidentialClientApplication } from '@azure/msal-node'
+import { initConsole } from '@sergei-gaponik/hedo2.lib.util'
 
 async function main() {
+
+  initConsole(console)
 
   console.log(`${bold(yellow('CONSOLE API'))} v${VERSION}\n`);
   console.log(`env: ${PRODUCTION ? bold(cyan("PRODUCTION")) : bold(yellow("DEVELOPMENT"))}`);
@@ -31,7 +34,7 @@ async function main() {
   const mongoDB = await MongoClient.connect(MONGODB_INSTANCE, mongoOptions)
   .then(client => client.db());
   
-  console.log('initializing ms graph client');
+  console.log('initializing microsoft graph client...');
   
   const msalConfig = {
     auth: {
@@ -59,7 +62,7 @@ async function main() {
 
 
   app.listen(PORT, () => {
-    console.log(`\napp running on ${cyan(`https://${HOST}:${PORT}`)}`);
+    console.log(`app running on ${cyan(`https://${HOST}:${PORT}`)}`);
     console.log(`api endpoint ${cyan(`https://${HOST}:${PORT}/api`)}`);
   })
 

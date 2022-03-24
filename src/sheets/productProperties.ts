@@ -4,7 +4,7 @@ import { CheckSheetResponse, CommitSheetArgs, ConsoleRequestError, ConsoleRespon
 import { readFromSheet, writeToSheet } from '../util/sheets'
 import { validateSheetValues, isValidName, isValidDescription } from "../util/validation"
 import { overview } from '../util/overview'
-import { ProductProperty } from '@sergei-gaponik/hedo2.lib.models'
+import { ProductProperty, ProductPropertyDataType } from '@sergei-gaponik/hedo2.lib.models'
 import { deleteProductProperties, getAllProductProperties, upsertProductProperties } from '../crud/productProperties'
 import { getAllProductPropertyCategories } from '../crud/productPropertyCategories'
 import { getFillsForSheetReset, idFromHandle } from '../util/misc'
@@ -63,6 +63,7 @@ export async function commit(args: CommitSheetArgs): Promise<ConsoleResponse>{
     title: row[POS.title] as string,
     category: idFromHandle(row[POS.category] as string, productPropertyCategories),
     description: row[POS.description] as string,
+    dataType: ProductPropertyDataType.boolean
   }))
 
   const r = await upsertProductProperties(upserts)
@@ -84,14 +85,16 @@ export async function reset(): Promise<ConsoleResponse>{
 
   const productProperties = await getAllProductProperties()
 
-  const values = productProperties.map(productProperty => Object.values({
-    [POS.id]: productProperty._id,
-    [POS.handle]: productProperty.handle || "",
-    [POS.name]: productProperty.name || "",
-    [POS.title]: productProperty.title || "",
-    [POS.category]: (productProperty.category as any).handle || "",
-    [POS.description]: productProperty.description || "",
-  }))
+  const values = productProperties
+    .sort((a, b) => a.handle > b.handle ? 1 : -1)
+    .map(productProperty => Object.values({
+      [POS.id]: productProperty._id,
+      [POS.handle]: productProperty.handle || "",
+      [POS.name]: productProperty.name || "",
+      [POS.title]: productProperty.title || "",
+      [POS.category]: (productProperty.category as any).handle || "",
+      [POS.description]: productProperty.description || "",
+    }))
 
   const fills = getFillsForSheetReset(values.length, SHEET_HEAD.length, {
     [POS.id]: Color.immutable,
